@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>IPTV - A2Z / ABS CBN</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.compiled.js"></script>
+</head>
+<body>
+  <h2>Now Playing: A2Z / ABS CBN</h2>
+  <video id="video" width="720" controls autoplay></video>
+
+  <script>
+    async function initApp() {
+      shaka.polyfill.installAll();
+
+      if (!shaka.Player.isBrowserSupported()) {
+        alert('Your browser does not support MPEG-DASH + EME.');
+        return;
+      }
+
+      const video = document.getElementById('video');
+      const player = new shaka.Player(video);
+
+      // DRM license key for ClearKey
+      const drmConfig = {
+        clearKeys: {
+          'f703e4c8ec9041eeb5028ab4248fa094': 'c22f2162e176eee6273a5d0b68d19530'
+        }
+      };
+
+      player.configure({ drm: drmConfig });
+
+      try {
+        await player.load('https://qp-pldt-live-grp-02-prod.akamaized.net/out/u/cg_a2z.mpd');
+        console.log('Stream loaded successfully!');
+      } catch (e) {
+        console.error('Error loading stream:', e);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>
