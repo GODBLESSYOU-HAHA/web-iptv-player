@@ -3,137 +3,162 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IPTV Web Player</title>
-  <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
+  <title>IPTV App</title>
+  <link href="https://unpkg.com/video.js/dist/video-js.css" rel="stylesheet" />
+  <script src="https://unpkg.com/video.js/dist/video.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
-    body { font-family: sans-serif; background: #111; color: white; margin: 0; padding: 0; }
-    header { padding: 1rem; text-align: center; background: #222; }
-    #player-container { position: sticky; top: 0; background: black; z-index: 10; }
-    #channelList { display: flex; flex-wrap: nowrap; overflow-x: auto; padding: 1rem; gap: 1rem; }
-    .channel { background: #222; padding: 1rem; border-radius: 10px; cursor: pointer; min-width: 200px; }
-    .channel:hover { background: #333; }
-    #nowPlaying { padding: 0.5rem 1rem; background: #333; }
-    .controls { padding: 1rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-    select, input { padding: 0.5rem; border-radius: 5px; border: none; }
-    .favorite { color: gold; font-weight: bold; margin-left: 0.5rem; cursor: pointer; }
+    body { margin: 0; font-family: sans-serif; background: #121212; color: #fff; }
+    .player-container { position: sticky; top: 0; background: #000; z-index: 10; }
+    .channel-list { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 1rem; padding: 1rem; }
+    .channel-card { background: #1e1e1e; padding: 1rem; border-radius: 8px; min-width: 200px; flex-shrink: 0; cursor: pointer; }
+    .favorites { color: gold; cursor: pointer; }
+    .banner { padding: 1rem; background: #222; }
+    .controls { display: flex; gap: 0.5rem; padding: 0.5rem 1rem; }
+    select, input { padding: 0.5rem; border-radius: 4px; border: none; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>IPTV PREMIUM</h1>
-  </header>
+  <div class="player-container">
+    <video id="videoPlayer" class="video-js vjs-default-skin" controls autoplay></video>
+  </div>
 
-  <div id="player-container">
-    <video id="video" class="video-js vjs-default-skin" controls preload="auto" width="100%" height="300"></video>
-    <div id="nowPlaying">Now Playing: <span id="nowPlayingTitle">None</span></div>
+  <div class="banner">
+    <h3>📺 Now Playing: <span id="nowPlayingTitle"></span></h3>
   </div>
 
   <div class="controls">
-    <select id="categoryFilter">
-      <option value="All">All Categories</option>
-    </select>
-    <input type="text" id="search" placeholder="Search channel...">
+    <select id="categorySelect"><option value="all">All</option></select>
+    <input id="searchInput" type="text" placeholder="Search channel..." />
   </div>
 
-  <div id="channelList"></div>
-
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-  <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
-  <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+  <div class="channel-list" id="channelList"></div>
 
   <script>
     const m3uUrl = "https://raw.githubusercontent.com/GODBLESSYOU-HAHA/FREEIPTV/refs/heads/main/GOD%20BLESS%20YOU";
-    const player = videojs('video');
-    let channels = [], favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+    const player = videojs("videoPlayer");
+    let channels = [], favorites = [], currentChannelIndex = 0;
 
-    async function loadM3U() {
-      const res = await fetch(m3uUrl);
-      const text = await res.text();
-      const lines = text.split('\n');
-      let current = {};
+    if (localStorage.getItem("favorites")) {
+      favorites = JSON.parse(localStorage.getItem("favorites"));
+    }
 
-      for (let line of lines) {
+    function parseM3U(data) {
+      const lines = data.split(/\r?\n/);
+      let result = [], current = {};
+      lines.forEach(line => {
         if (line.startsWith("#EXTINF")) {
-          const name = line.split(",").pop().trim();
-          const match = line.match(/group-title="(.*?)"/);
-          const group = match ? match[1] : "Other";
-          current = { name, group };
-        } else if (line.startsWith("http")) {
-          current.url = line.trim();
-          channels.push({ ...current });
+          const nameMatch = line.match(/tvg-name="(.*?)"/);
+          const logoMatch = line.match(/tvg-logo="(.*?)"/);
+          const groupMatch = line.match(/group-title="(.*?)"/);
+          current = {
+            name: nameMatch ? nameMatch[1] : line.split(",").pop(),
+            logo: logoMatch ? logoMatch[1] : "",
+            group: groupMatch ? groupMatch[1] : "",
+          };
+        } else if (line && !line.startsWith("#")) {
+          current.url = line;
+          result.push(current);
         }
-      }
-
-      renderChannels();
-      populateCategories();
-    }
-
-    function populateCategories() {
-      const select = document.getElementById("categoryFilter");
-      const categories = ["All", ...new Set(channels.map(c => c.group))];
-      for (let cat of categories) {
-        const option = document.createElement("option");
-        option.value = cat;
-        option.textContent = cat;
-        select.appendChild(option);
-      }
-    }
-
-    function renderChannels() {
-      const container = document.getElementById("channelList");
-      container.innerHTML = "";
-      const search = document.getElementById("search").value.toLowerCase();
-      const category = document.getElementById("categoryFilter").value;
-
-      const filtered = channels.filter(c => {
-        return (category === "All" || c.group === category) && c.name.toLowerCase().includes(search);
       });
+      return result;
+    }
 
-      for (let ch of filtered) {
-        const div = document.createElement("div");
-        div.className = "channel";
-        div.innerHTML = `
-          ${ch.name}
-          <span class="favorite" onclick="toggleFavorite('${ch.name}')">
-            ${favorites.includes(ch.name) ? '⭐' : '☆'}
-          </span>
+    function renderChannels(list) {
+      const listContainer = document.getElementById("channelList");
+      listContainer.innerHTML = "";
+      list.forEach((channel, index) => {
+        const card = document.createElement("div");
+        card.className = "channel-card";
+        card.innerHTML = `
+          <img src="${channel.logo}" alt="" style="width:100%; height:100px; object-fit:contain;"><br>
+          ${channel.name}<br>
+          <span class="favorites">${favorites.includes(channel.url) ? '⭐' : '☆'}</span>
         `;
-        div.onclick = () => playStream(ch);
-        container.appendChild(div);
-      }
+        card.onclick = () => { currentChannelIndex = index; playStream(channel); };
+        card.querySelector(".favorites").onclick = (e) => {
+          e.stopPropagation();
+          toggleFavorite(channel.url);
+          renderChannels(list);
+        };
+        listContainer.appendChild(card);
+      });
     }
 
-    function playStream(channel) {
-      document.getElementById("nowPlayingTitle").textContent = channel.name;
-      const url = channel.url;
-
-      console.log("Attempting to play:", url);
-
-      if (url.includes(".m3u8")) {
-        player.src({ src: url, type: "application/x-mpegURL" });
-      } else if (url.includes(".mpd")) {
-        player.src({ src: url, type: "application/dash+xml" });
+    function toggleFavorite(url) {
+      if (favorites.includes(url)) {
+        favorites = favorites.filter(f => f !== url);
       } else {
-        player.src({ src: url, type: "application/x-mpegURL" }); // Try anyway
-      }
-
-      player.play();
-    }
-
-    function toggleFavorite(name) {
-      if (favorites.includes(name)) {
-        favorites = favorites.filter(n => n !== name);
-      } else {
-        favorites.push(name);
+        favorites.push(url);
       }
       localStorage.setItem("favorites", JSON.stringify(favorites));
-      renderChannels();
     }
 
-    document.getElementById("categoryFilter").onchange = renderChannels;
-    document.getElementById("search").oninput = renderChannels;
+    function updateCategoryFilter(channels) {
+      const categories = ["All", ...new Set(channels.map(c => c.group))];
+      const select = document.getElementById("categorySelect");
+      select.innerHTML = categories.map(cat => `<option value="${cat}">${cat}</option>`).join("");
+    }
 
-    loadM3U();
+    function applyFilters() {
+      const category = document.getElementById("categorySelect").value;
+      const keyword = document.getElementById("searchInput").value.toLowerCase();
+      let filtered = channels.filter(c => c.name.toLowerCase().includes(keyword));
+      if (category !== "All") filtered = filtered.filter(c => c.group === category);
+      renderChannels(filtered);
+    }
+
+    document.getElementById("categorySelect").onchange = applyFilters;
+    document.getElementById("searchInput").oninput = applyFilters;
+
+    function playStream(channel) {
+      console.log("Playing:", channel.name, channel.url);
+      document.getElementById("nowPlayingTitle").textContent = channel.name;
+
+      const url = channel.url;
+      let typeHint;
+
+      if (url.includes(".m3u8")) {
+        typeHint = "application/x-mpegURL";
+      } else if (url.includes(".mpd")) {
+        typeHint = "application/dash+xml";
+      } else {
+        typeHint = prompt(`Unknown stream type for: ${url}\nTry typing \"hls\" or \"dash\"`);
+        if (typeHint === "hls") typeHint = "application/x-mpegURL";
+        else if (typeHint === "dash") typeHint = "application/dash+xml";
+        else return alert("Unsupported stream: " + url);
+      }
+
+      if (typeHint === "application/x-mpegURL" && Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(player.tech_.el_);
+        hls.on(Hls.Events.ERROR, function (event, data) {
+          console.error("HLS.js error", data);
+        });
+      } else {
+        player.src({ src: url, type: typeHint });
+      }
+      player.play().catch(err => alert("Playback failed: " + err.message));
+    }
+
+    fetch(m3uUrl)
+      .then(res => res.text())
+      .then(text => {
+        channels = parseM3U(text);
+        updateCategoryFilter(channels);
+        renderChannels(channels);
+      });
+
+    window.addEventListener("keydown", e => {
+      if (e.key === "ArrowRight") {
+        currentChannelIndex = (currentChannelIndex + 1) % channels.length;
+        playStream(channels[currentChannelIndex]);
+      } else if (e.key === "ArrowLeft") {
+        currentChannelIndex = (currentChannelIndex - 1 + channels.length) % channels.length;
+        playStream(channels[currentChannelIndex]);
+      }
+    });
   </script>
 </body>
 </html>
