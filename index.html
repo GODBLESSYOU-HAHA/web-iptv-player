@@ -2,262 +2,138 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>IPTV Player - GOD BLESS YOU</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <link href="https://vjs.zencdn.net/8.5.2/video-js.css" rel="stylesheet" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IPTV Web Player</title>
+  <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
   <style>
-    body { margin: 0; font-family: sans-serif; background: #111; color: #fff; }
-    #player { width: 100%; max-height: 60vh; }
-    #controls { display: flex; gap: 10px; padding: 10px; background: #222; flex-wrap: wrap; align-items: center; }
-    #category-filter, #search-bar { padding: 6px 10px; font-size: 14px; border-radius: 4px; }
-
-    .carousel-container {
-      overflow-x: auto;
-      display: flex;
-      scroll-behavior: smooth;
-      padding: 10px;
-      gap: 10px;
-      background: #000;
-    }
-
-    .channel {
-      min-width: 200px;
-      flex: 0 0 auto;
-      background: #222;
-      border-radius: 8px;
-      padding: 10px;
-      color: #fff;
-      cursor: pointer;
-      text-align: center;
-      border: 2px solid transparent;
-      position: relative;
-    }
-
-    .channel:hover {
-      border-color: #0af;
-      background: #333;
-    }
-
-    .channel img {
-      max-width: 100%;
-      height: 80px;
-      object-fit: contain;
-      border-radius: 4px;
-      margin-bottom: 5px;
-    }
-
-    .channel strong {
-      display: block;
-      font-size: 15px;
-      margin-bottom: 2px;
-    }
-
-    .channel small {
-      font-size: 12px;
-      color: #ccc;
-    }
-
-    .favorite-btn {
-      position: absolute;
-      top: 5px;
-      right: 5px;
-      background: transparent;
-      border: none;
-      color: gold;
-      font-size: 20px;
-      cursor: pointer;
-    }
-
-    .now-playing {
-      padding: 10px;
-      background: #0af;
-      color: #000;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-weight: bold;
-    }
-
-    .now-playing img {
-      height: 40px;
-      width: 40px;
-      object-fit: contain;
-      border-radius: 4px;
-      background: #fff;
-    }
+    body { font-family: sans-serif; background: #111; color: white; margin: 0; padding: 0; }
+    header { padding: 1rem; text-align: center; background: #222; }
+    #player-container { position: sticky; top: 0; background: black; z-index: 10; }
+    #channelList { display: flex; flex-wrap: nowrap; overflow-x: auto; padding: 1rem; gap: 1rem; }
+    .channel { background: #222; padding: 1rem; border-radius: 10px; cursor: pointer; min-width: 200px; }
+    .channel:hover { background: #333; }
+    #nowPlaying { padding: 0.5rem 1rem; background: #333; }
+    .controls { padding: 1rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    select, input { padding: 0.5rem; border-radius: 5px; border: none; }
+    .favorite { color: gold; font-weight: bold; margin-left: 0.5rem; cursor: pointer; }
   </style>
 </head>
 <body>
+  <header>
+    <h1>IPTV PREMIUM</h1>
+  </header>
 
-  <video id="player" class="video-js vjs-default-skin" controls autoplay preload="auto"></video>
-
-  <div class="now-playing" id="now-playing" style="display: none;">
-    <img id="now-logo" src="" alt="Logo" />
-    <span id="now-title">Now Playing</span>
+  <div id="player-container">
+    <video id="video" class="video-js vjs-default-skin" controls preload="auto" width="100%" height="300"></video>
+    <div id="nowPlaying">Now Playing: <span id="nowPlayingTitle">None</span></div>
   </div>
 
-  <div id="controls">
-    <label for="category-filter">Category:</label>
-    <select id="category-filter"></select>
-    
-    <label for="search-bar">Search:</label>
-    <input type="text" id="search-bar" placeholder="Search channel..." />
+  <div class="controls">
+    <select id="categoryFilter">
+      <option value="All">All Categories</option>
+    </select>
+    <input type="text" id="search" placeholder="Search channel...">
   </div>
 
-  <div id="channel-carousel" class="carousel-container"></div>
+  <div id="channelList"></div>
 
-  <script src="https://vjs.zencdn.net/8.5.2/video.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/videojs-contrib-dash@2/dash.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/videojs-http-streaming@2.9.1/dist/videojs-http-streaming.min.js"></script>
+  <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
 
   <script>
     const m3uUrl = "https://raw.githubusercontent.com/GODBLESSYOU-HAHA/FREEIPTV/refs/heads/main/GOD%20BLESS%20YOU";
-    const player = videojs('player');
-    let allChannels = [];
-    let filteredChannels = [];
-    let currentIndex = 0;
+    const player = videojs('video');
+    let channels = [], favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
 
-    const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-
-    async function fetchM3U(url) {
-      const res = await fetch(url);
+    async function loadM3U() {
+      const res = await fetch(m3uUrl);
       const text = await res.text();
       const lines = text.split('\n');
-      const parsed = [];
+      let current = {};
 
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].startsWith('#EXTINF')) {
-          const nameMatch = lines[i].match(/,(.*)/);
-          const groupMatch = lines[i].match(/group-title="(.*?)"/);
-          const logoMatch = lines[i].match(/tvg-logo="(.*?)"/);
-
-          parsed.push({
-            name: nameMatch ? nameMatch[1].trim() : 'Unknown',
-            group: groupMatch ? groupMatch[1] : 'General',
-            logo: logoMatch ? logoMatch[1] : '',
-            url: lines[i + 1]
-          });
+      for (let line of lines) {
+        if (line.startsWith("#EXTINF")) {
+          const name = line.split(",").pop().trim();
+          const match = line.match(/group-title="(.*?)"/);
+          const group = match ? match[1] : "Other";
+          current = { name, group };
+        } else if (line.startsWith("http")) {
+          current.url = line.trim();
+          channels.push({ ...current });
         }
       }
 
-      return parsed;
+      renderChannels();
+      populateCategories();
     }
 
-    function saveFavorites() {
-      localStorage.setItem('favorites', JSON.stringify(favorites));
-    }
-
-    function toggleFavorite(channel) {
-      const index = favorites.findIndex(f => f.url === channel.url);
-      if (index > -1) {
-        favorites.splice(index, 1);
-      } else {
-        favorites.push(channel);
+    function populateCategories() {
+      const select = document.getElementById("categoryFilter");
+      const categories = ["All", ...new Set(channels.map(c => c.group))];
+      for (let cat of categories) {
+        const option = document.createElement("option");
+        option.value = cat;
+        option.textContent = cat;
+        select.appendChild(option);
       }
-      saveFavorites();
-      renderCarousel(filteredChannels);
     }
 
-    function isFavorite(channel) {
-      return favorites.some(f => f.url === channel.url);
+    function renderChannels() {
+      const container = document.getElementById("channelList");
+      container.innerHTML = "";
+      const search = document.getElementById("search").value.toLowerCase();
+      const category = document.getElementById("categoryFilter").value;
+
+      const filtered = channels.filter(c => {
+        return (category === "All" || c.group === category) && c.name.toLowerCase().includes(search);
+      });
+
+      for (let ch of filtered) {
+        const div = document.createElement("div");
+        div.className = "channel";
+        div.innerHTML = `
+          ${ch.name}
+          <span class="favorite" onclick="toggleFavorite('${ch.name}')">
+            ${favorites.includes(ch.name) ? '⭐' : '☆'}
+          </span>
+        `;
+        div.onclick = () => playStream(ch);
+        container.appendChild(div);
+      }
     }
 
-    function updateNowPlaying(channel) {
-      const banner = document.getElementById('now-playing');
-      const logo = document.getElementById('now-logo');
-      const title = document.getElementById('now-title');
+    function playStream(channel) {
+      document.getElementById("nowPlayingTitle").textContent = channel.name;
+      const url = channel.url;
 
-      logo.src = channel.logo || '';
-      title.textContent = channel.name;
-      banner.style.display = 'flex';
-    }
+      console.log("Attempting to play:", url);
 
-    function playStream(index) {
-      const channel = filteredChannels[index];
-      if (!channel) return;
-      currentIndex = index;
-
-      if (channel.url.endsWith('.m3u8')) {
-        player.src({ src: channel.url, type: 'application/x-mpegURL' });
-      } else if (channel.url.endsWith('.mpd')) {
-        player.src({ src: channel.url, type: 'application/dash+xml' });
+      if (url.includes(".m3u8")) {
+        player.src({ src: url, type: "application/x-mpegURL" });
+      } else if (url.includes(".mpd")) {
+        player.src({ src: url, type: "application/dash+xml" });
       } else {
-        alert("Unsupported stream type.");
+        player.src({ src: url, type: "application/x-mpegURL" }); // Try anyway
       }
 
       player.play();
-      updateNowPlaying(channel);
     }
 
-    function renderCategories() {
-      const select = document.getElementById('category-filter');
-      const groups = [...new Set(allChannels.map(c => c.group))];
-      select.innerHTML = `<option value="All">All Categories</option>` +
-        groups.map(g => `<option value="${g}">${g}</option>`).join('');
-      select.onchange = filterChannels;
-    }
-
-    function filterChannels() {
-      const selectedGroup = document.getElementById('category-filter').value;
-      const searchTerm = document.getElementById('search-bar').value.toLowerCase();
-
-      filteredChannels = allChannels.filter(c => {
-        const matchGroup = selectedGroup === 'All' || c.group === selectedGroup;
-        const matchName = c.name.toLowerCase().includes(searchTerm);
-        return matchGroup && matchName;
-      });
-
-      renderCarousel(filteredChannels);
-    }
-
-    function renderCarousel(list) {
-      const container = document.getElementById('channel-carousel');
-      container.innerHTML = '';
-      list.forEach((channel, index) => {
-        const div = document.createElement('div');
-        div.className = 'channel';
-        div.innerHTML = `
-          <button class="favorite-btn" title="Toggle Favorite">
-            ${isFavorite(channel) ? '★' : '☆'}
-          </button>
-          ${channel.logo ? `<img src="${channel.logo}" alt="logo">` : ''}
-          <strong>${channel.name}</strong>
-          <small>${channel.group}</small>
-        `;
-        div.onclick = () => playStream(index);
-        div.querySelector('.favorite-btn').onclick = (e) => {
-          e.stopPropagation();
-          toggleFavorite(channel);
-        };
-        container.appendChild(div);
-      });
-
-      if (list.length > 0) {
-        playStream(0);
+    function toggleFavorite(name) {
+      if (favorites.includes(name)) {
+        favorites = favorites.filter(n => n !== name);
+      } else {
+        favorites.push(name);
       }
+      localStorage.setItem("favorites", JSON.stringify(favorites));
+      renderChannels();
     }
 
-    // ← / → key navigation
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowRight') {
-        currentIndex = (currentIndex + 1) % filteredChannels.length;
-        playStream(currentIndex);
-      } else if (e.key === 'ArrowLeft') {
-        currentIndex = (currentIndex - 1 + filteredChannels.length) % filteredChannels.length;
-        playStream(currentIndex);
-      }
-    });
+    document.getElementById("categoryFilter").onchange = renderChannels;
+    document.getElementById("search").oninput = renderChannels;
 
-    document.getElementById('search-bar').addEventListener('input', filterChannels);
-
-    async function init() {
-      allChannels = await fetchM3U(m3uUrl);
-      renderCategories();
-      filterChannels(); // Triggers initial rendering
-    }
-
-    init();
+    loadM3U();
   </script>
 </body>
 </html>
