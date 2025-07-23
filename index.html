@@ -44,14 +44,23 @@
       background: #222;
       color: white;
     }
+
+    /* ✅ Fixed swipe carousel styles */
     .carousel {
       display: flex;
       overflow-x: auto;
       gap: 10px;
       padding: 0 15px;
       margin-bottom: 10px;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+    .carousel::-webkit-scrollbar {
+      display: none;
     }
     .carousel button {
+      flex-shrink: 0;
+      scroll-snap-align: start;
       background: #333;
       color: white;
       border: none;
@@ -63,6 +72,7 @@
     .carousel button.active {
       background: #ff007f;
     }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
@@ -152,11 +162,15 @@
     }
 
     async function loadPlaylist() {
-      const res = await fetch(M3U_URL);
-      const text = await res.text();
-      channels = parseM3U(text);
-      renderCategories();
-      renderChannels();
+      try {
+        const res = await fetch(M3U_URL);
+        const text = await res.text();
+        channels = parseM3U(text);
+        renderCategories();
+        renderChannels();
+      } catch (e) {
+        console.error('Failed to load playlist', e);
+      }
     }
 
     function renderCategories() {
