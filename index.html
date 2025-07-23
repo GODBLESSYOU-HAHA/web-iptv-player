@@ -44,6 +44,8 @@
       background: #222;
       color: white;
     }
+
+    /* Category Carousel */
     .carousel {
       display: flex;
       overflow-x: auto;
@@ -71,32 +73,26 @@
       background: #ff007f;
     }
 
-    .channel-pages {
+    /* Horizontal Channel Grid — 1 row, 2 columns */
+    .grid {
       display: flex;
       overflow-x: auto;
-      scroll-snap-type: x mandatory;
-      -webkit-overflow-scrolling: touch;
-    }
-    .channel-pages::-webkit-scrollbar {
-      display: none;
-    }
-    .channel-page {
-      scroll-snap-align: start;
-      flex-shrink: 0;
-      width: 100%;
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
       gap: 10px;
       padding: 10px 15px 100px;
-      box-sizing: border-box;
+      scroll-snap-type: x mandatory;
+    }
+    .grid::-webkit-scrollbar {
+      display: none;
     }
     .channel {
+      flex: 0 0 calc(50% - 10px); /* 2 per view */
       background: #1c1c1c;
       border-radius: 12px;
       padding: 10px;
       text-align: center;
       cursor: pointer;
       transition: 0.2s;
+      scroll-snap-align: start;
     }
     .channel:hover {
       background: #272727;
@@ -111,6 +107,7 @@
       margin: 8px 0 0;
       font-size: 0.85rem;
     }
+
     #reconnecting {
       display: none;
       position: fixed;
@@ -136,14 +133,14 @@
   <input type="text" id="search" placeholder="Search channels..."/>
 
   <div class="carousel" id="categoryList"></div>
-  <div class="channel-pages" id="channelPages"></div>
+  <div class="grid" id="channelList"></div>
 
   <div id="reconnecting">Reconnecting…</div>
 
   <script>
     const M3U_URL = 'https://raw.githubusercontent.com/PRENDLYMADAPAKER/ANG-KALAT-MO/main/IPTVPREMIUM.m3u';
     const video = document.getElementById('player');
-    const channelPages = document.getElementById('channelPages');
+    const channelList = document.getElementById('channelList');
     const categoryList = document.getElementById('categoryList');
     const nowChannel = document.getElementById('nowChannel');
     const reconnecting = document.getElementById('reconnecting');
@@ -203,32 +200,20 @@
 
     function renderChannels() {
       const term = search.value.toLowerCase();
-      const filtered = channels.filter(c =>
+      const filtered = channels.filter(c => 
         (currentCategory === 'All' || c.group === currentCategory) &&
         c.name.toLowerCase().includes(term)
       );
-
-      const chunkSize = 12;
-      const chunks = [];
-      for (let i = 0; i < filtered.length; i += chunkSize) {
-        chunks.push(filtered.slice(i, i + chunkSize));
-      }
-
-      channelPages.innerHTML = '';
-      chunks.forEach(group => {
-        const page = document.createElement('div');
-        page.className = 'channel-page';
-        group.forEach(c => {
-          const div = document.createElement('div');
-          div.className = 'channel';
-          div.innerHTML = `
-            <img src="${c.logo}" onerror="this.src='https://via.placeholder.com/150x70?text=No+Logo'"/>
-            <p>${c.name}</p>
-          `;
-          div.onclick = () => playChannel(c);
-          page.appendChild(div);
-        });
-        channelPages.appendChild(page);
+      channelList.innerHTML = '';
+      filtered.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'channel';
+        div.innerHTML = `
+          <img src="${c.logo}" onerror="this.src='https://via.placeholder.com/150x70?text=No+Logo'"/>
+          <p>${c.name}</p>
+        `;
+        div.onclick = () => playChannel(c);
+        channelList.appendChild(div);
       });
     }
 
