@@ -25,6 +25,14 @@
       font-size: 1.5rem;
       z-index: 1000;
     }
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0.2; }
+      100% { opacity: 1; }
+    }
+    #loading span {
+      animation: blink 1s infinite;
+    }
 
     /* Login UI */
     #loginPage {
@@ -167,7 +175,7 @@
   </style>
 </head>
 <body>
-  <div id="loading">Loading IPTV Interface...</div>
+  <div id="loading"><span>Loading IPTV Interface...</span></div>
   <div id="loginPage">
     <div class="loginBox">
       <h2>NZM IPTV</h2>
@@ -224,7 +232,6 @@
         const keys = Object.keys(sessions);
 
         if (keys.length >= 2 && !sessions[deviceId]) {
-          // Remove oldest session
           const oldestKey = keys.sort((a, b) => sessions[a].timestamp - sessions[b].timestamp)[0];
           await ref.child(oldestKey).remove();
         }
@@ -237,7 +244,6 @@
           document.getElementById('loading').style.display = 'none';
           initApp();
         }, 1500);
-
       } catch (e) {
         alert(e.message);
       }
@@ -251,6 +257,7 @@
     }
 
     auth.onAuthStateChanged(async user => {
+      document.getElementById('loading').style.display = 'none';
       if (user) {
         const sessions = (await db.ref(`sessions/${user.uid}`).once('value')).val() || {};
         if (!sessions[deviceId]) {
@@ -258,7 +265,6 @@
         } else {
           document.getElementById('loginPage').classList.add('hidden');
           document.getElementById('iptvPage').classList.remove('hidden');
-          document.getElementById('loading').style.display = 'none';
           initApp();
         }
       }
@@ -365,7 +371,7 @@
       video.addEventListener('play', startFreezeMonitor);
       search.addEventListener('input', renderChannels);
       loadPlaylist();
-      setInterval(loadPlaylist, 180000); // every 3 mins
+      setInterval(loadPlaylist, 180000);
     }
 
     function showLoading() {
